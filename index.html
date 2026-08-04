@@ -961,25 +961,47 @@
         recognition = new SpeechRecognition();
         recognition.lang = 'ja-JP';
         recognition.continuous = true;
-        recognition.interimResults = false;
+        recognition.interimResults = true; // ★途中経過も取得して感度を劇的に向上
+
+        recognition.onstart = () => {
+          console.log('Speech recognition started');
+          showVoiceToast('🎤 声の聞き取り準備完了！話しかけてください');
+        };
+
+        recognition.onaudiostart = () => {
+          console.log('Audio capture started');
+        };
+
+        recognition.onsoundstart = () => {
+          console.log('Sound detected');
+        };
 
         recognition.onresult = (event) => {
-          const lastIdx = event.results.length - 1;
-          const text = event.results[lastIdx][0].transcript.trim().toLowerCase();
-          console.log('Voice Command Received:', text);
-          showVoiceToast(`🗣️ 認識: 「${text}」`);
-          processVoiceCommand(text);
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const result = event.results[i];
+            const text = result[0].transcript.trim().toLowerCase();
+            
+            if (!result.isFinal) {
+              // 発話中の途中経過をリアルタイム表示
+              showVoiceToast(`🗣️ 聞き取り中: 「${text}」`);
+            } else {
+              // 確定時
+              console.log('Voice Command Received (Final):', text);
+              showVoiceToast(`🗣️ 認識確定: 「${text}」`);
+              processVoiceCommand(text);
+            }
+          }
         };
 
         recognition.onerror = (event) => {
           console.warn('Speech recognition error:', event.error);
           if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            showVoiceToast('⚠️ マイク許可が拒否されました（GAS埋め込み制限の可能性あり）');
+            showVoiceToast('⚠️ マイクアクセスが拒否されています。アドレスバーの鍵マークで「マイク」を許可してください。');
             voiceCmdEnabled = false;
             btnToggleVoice.classList.remove('active');
             btnToggleVoice.textContent = '🗣️ 声操作 OFF';
           } else if (event.error === 'network') {
-            showVoiceToast('⚠️ ネットワークエラー（音声認識にネット接続が必要です）');
+            showVoiceToast('⚠️ ネットワークエラー（インターネット接続が必要です）');
           } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
             showVoiceToast(`⚠️ 音声認識エラー: ${event.error}`);
           }
@@ -1000,7 +1022,6 @@
         recognition.start();
       } catch(e) {
         console.warn("Speech recognition start failed:", e);
-        showVoiceToast('⚠️ 音声認識の起動に失敗しました（埋め込み制限）');
       }
     }
 
