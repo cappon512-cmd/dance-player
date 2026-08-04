@@ -980,7 +980,7 @@
             btnToggleVoice.textContent = '🗣️ 声操作 OFF';
           } else if (event.error === 'network') {
             showVoiceToast('⚠️ ネットワークエラー（音声認識にネット接続が必要です）');
-          } else if (event.error !== 'no-speech') {
+          } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
             showVoiceToast(`⚠️ 音声認識エラー: ${event.error}`);
           }
         };
