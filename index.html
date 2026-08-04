@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dance Beat Player - Touch Edition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0c0e17;
+      --card-bg: #161928;
+      --card-border: #252a40;
+      --primary: #7c3aed;
+      --primary-hover: #6d28d9;
+      --primary-light: #a78bfa;
+      --accent-cyan: #06b6d4;
+      --accent-pink: #ec4899;
+      --accent-green: #10b981;
+      --accent-yellow: #f59e0b;
+      --text-main: #f3f4f6;
+      --text-sub: #9ca3af;
+      --radius-lg: 12px;
+      --radius-md: 8px;
+      --radius-sm: 6px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 6px 10px;
+      gap: 6px;
+    }
+
+    /* Top Bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-bg);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--card-border);
+      padding: 4px 12px;
+      height: 38px;
+      flex-shrink: 0;
+    }
+    .app-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      white-space: nowrap;
+    }
+    .track-title-head {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 60%;
+    }
+
+    /* WIDE FULL-WIDTH TIMELINE CARD */
+    .timeline-wide-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 6px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    .time-display-wide {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.85rem;
+      color: var(--text-sub);
+    }
+    .time-current {
+      color: var(--accent-cyan);
+      font-weight: 800;
+      font-size: 1.05rem;
+    }
+    .seek-bar-wrapper {
+      width: 100%;
+      height: 22px;
+      display: flex;
+      align-items: center;
+    }
+    input[type="range"].seek-bar-full {
+      width: 100%;
+      height: 12px;
+      -webkit-appearance: none;
+      background: #252a40;
+      border-radius: 6px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"].seek-bar-full::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-cyan);
+      cursor: pointer;
+    }
+
+    /* Main Grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 330px 1fr;
+      gap: 8px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    @media (max-width: 880px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+    }
+
+    /* Left Control Panel */
+    .left-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow-y: auto;
+    }
+
+    .file-dropzone-left {
+      background: rgba(6, 182, 212, 0.08);
+      border: 2px dashed var(--accent-cyan);
+      border-radius: var(--radius-lg);
+      padding: 8px;
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      transition: all 0.2s ease;
+    }
+    .file-dropzone-left:hover, .file-dropzone-left.dragover {
+      background: rgba(6, 182, 212, 0.2);
+      border-color: var(--accent-pink);
+    }
+    .dropzone-text {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+    #file-input { display: none; }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-sub);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Mixer & Volume Controls */
+    .mixer-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .vol-row {
+      display: grid;
+      grid-template-columns: 75px 1fr 40px;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+    }
+    input[type="range"].vol-slider {
+      width: 100%;
+      height: 6px;
+      -webkit-appearance: none;
+      background: #252a40;
+      border-radius: 3px;
+      outline: none;
+    }
+    input[type="range"].vol-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      cursor: pointer;
+    }
+
+    .mic-button-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-mic-toggle {
+      flex: 1;
+      background: #252a40;
+      border: 1px solid var(--card-border);
+      color: var(--text-sub);
+      padding: 6px;
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .btn-mic-toggle.active {
+      background: var(--accent-pink);
+      color: white;
+      border-color: var(--accent-pink);
+      box-shadow: 0 0 10px rgba(236, 72, 153, 0.4);
+    }
+    .btn-voice-cmd {
+      flex: 1;
+      background: #252a40;
+      border: 1px solid var(--card-border);
+      color: var(--text-sub);
+      padding: 6px;
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .btn-voice-cmd.active {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--primary));
+      color: white;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+    }
+
+    /* BPM & Beat Display */
+    .bpm-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0,0,0,0.3);
+      border-radius: var(--radius-md);
+      padding: 4px 10px;
+    }
+    .bpm-val {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--accent-cyan);
+      line-height: 1;
+    }
+    .bpm-controls { display: flex; gap: 4px; }
+    .btn-sm {
+      background: #252a40;
+      color: var(--text-main);
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 5px 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .beat-bar {
+      height: 5px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .beat-light {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-pink));
+      opacity: 0;
+      box-shadow: 0 0 10px var(--accent-cyan);
+    }
+    .beat-light.active { opacity: 1; }
+
+    /* Transport Buttons */
+    .transport-controls {
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr;
+      gap: 6px;
+    }
+    .btn-play {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--primary));
+      color: white;
+      font-weight: 800;
+      font-size: 1rem;
+      height: 40px;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+    }
+    .btn-ctrl {
+      background: #252a40;
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 0.75rem;
+      height: 40px;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+    }
+
+    /* Speed Control */
+    .speed-presets-slow {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 3px;
+    }
+    .btn-speed {
+      background: #252a40;
+      border: none;
+      color: var(--text-main);
+      padding: 6px 0;
+      border-radius: var(--radius-sm);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.65rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-speed.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    /* AB Repeat Grid */
+    .ab-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+    .btn-ab {
+      background: #252a40;
+      border: 1px solid transparent;
+      color: var(--text-main);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      font-size: 0.7rem;
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .btn-ab.set {
+      border-color: var(--accent-yellow);
+      color: var(--accent-yellow);
+      background: rgba(245, 158, 11, 0.15);
+    }
+
+    /* Assist Toggles */
+    .assist-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .toggle-btn {
+      background: #252a40;
+      border: 1px solid var(--card-border);
+      color: var(--text-sub);
+      padding: 6px;
+      border-radius: var(--radius-md);
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .toggle-btn.active {
+      background: var(--accent-green);
+      color: white;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+    }
+
+    /* Right Panel - Bookmark Pads */
+    .right-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow: hidden;
+    }
+
+    .bm-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .bm-header-title {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: var(--accent-cyan);
+    }
+    .btn-bm-action {
+      background: linear-gradient(135deg, var(--accent-pink), var(--primary));
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* 20-Interval Range Tabs */
+    .range-tabs-container {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+    }
+    .btn-range-tab {
+      background: #1a1e30;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      color: var(--text-sub);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 800;
+      padding: 8px 0;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s ease;
+    }
+    .btn-range-tab.active {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--primary));
+      color: white;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+    }
+
+    /* 20 Pad Grid */
+    .bookmark-pad-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 6px;
+      flex: 1;
+      height: 100%;
+    }
+
+    .bm-pad-btn {
+      background: #1a1e30;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      color: var(--text-sub);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.1s ease;
+      padding: 4px;
+    }
+    .bm-pad-btn:active { transform: scale(0.94); }
+
+    .bm-pad-num {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.35rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .bm-pad-time {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      margin-top: 3px;
+      display: none;
+    }
+    .bm-pad-note {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #ffffff;
+      max-width: 95%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+      display: none;
+    }
+
+    .bm-pad-btn.has-data {
+      background: linear-gradient(135deg, rgba(124, 58, 237, 0.5), rgba(6, 182, 212, 0.4));
+      border-color: var(--accent-cyan);
+      color: white;
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.25);
+    }
+    .bm-pad-btn.has-data .bm-pad-time,
+    .bm-pad-btn.has-data .bm-pad-note { display: block; }
+
+    .bm-edit-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0,0,0,0.4);
+      padding: 6px 10px;
+      border-radius: var(--radius-md);
+    }
+    .bm-edit-input {
+      flex: 1;
+      background: #161928;
+      border: 1px solid var(--card-border);
+      color: white;
+      padding: 5px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    /* Voice Toast Overlay */
+    .voice-toast {
+      position: fixed;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(6, 182, 212, 0.95);
+      color: white;
+      padding: 10px 24px;
+      border-radius: 20px;
+      font-weight: 800;
+      font-size: 1.1rem;
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.6);
+      z-index: 3000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .voice-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(10px);
+    }
+
+    /* Countdown Overlay */
+    .countdown-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(12, 14, 23, 0.95);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .countdown-overlay.show { opacity: 1; pointer-events: auto; }
+    .countdown-num {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 8rem; font-weight: 800;
+      color: var(--accent-cyan); text-shadow: 0 0 30px var(--accent-cyan);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="app-title">DANCE BEAT PLAYER</div>
+    <div class="track-title-head" id="track-title">ファイルが未選択です</div>
+  </div>
+
+  <!-- Voice Control Toast Popup -->
+  <div class="voice-toast" id="voice-toast">🗣️ 認識中...</div>
+
+  <!-- WIDE FULL-WIDTH TIMELINE -->
+  <div class="timeline-wide-card">
+    <div class="time-display-wide">
+      <span class="time-current" id="current-time">00:00.0</span>
+      <span style="font-size:0.75rem; color:var(--text-sub)">全体のシークバー (全幅表示)</span>
+      <span id="total-time">00:00.0</span>
+    </div>
+    <div class="seek-bar-wrapper">
+      <input type="range" class="seek-bar-full" id="seek-bar" min="0" max="100" value="0" step="0.1">
+    </div>
+  </div>
+
+  <!-- Main Grid Layout -->
+  <div class="main-grid">
+    
+    <!-- Left Control Panel -->
+    <div class="left-panel" id="left-panel-dropzone">
+      
+      <!-- Drop Zone Card -->
+      <div class="file-dropzone-left" id="dropzone">
+        <div class="dropzone-text">📁 ここに音楽ファイルをドロップ</div>
+        <input type="file" id="file-input" accept="audio/*">
+      </div>
+
+      <!-- Volume & Voice Command Mixer Card -->
+      <div class="card">
+        <div class="section-title">
+          <span>オーディオ & 声の操作</span>
+        </div>
+        <div class="mic-button-group">
+          <button class="btn-mic-toggle" id="btn-toggle-mic">🎤 マイク OFF</button>
+          <button class="btn-voice-cmd" id="btn-toggle-voice">🗣️ 声操作 OFF</button>
+        </div>
+        <div class="mixer-grid" style="margin-top:4px;">
+          <div class="vol-row">
+            <span>🎵 音楽音量</span>
+            <input type="range" class="vol-slider" id="music-vol" min="0" max="1" step="0.02" value="0.8">
+            <span id="music-vol-val">80%</span>
+          </div>
+          <div class="vol-row">
+            <span>🔊 メトロノーム</span>
+            <input type="range" class="vol-slider" id="metro-vol" min="0" max="1" step="0.02" value="0.5">
+            <span id="metro-vol-val">50%</span>
+          </div>
+          <div class="vol-row">
+            <span>🎤 マイク音量</span>
+            <input type="range" class="vol-slider" id="mic-vol" min="0" max="2" step="0.05" value="1.0">
+            <span id="mic-vol-val">100%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- BPM & Beat Light -->
+      <div class="card">
+        <div class="bpm-container">
+          <div>
+            <span class="bpm-val" id="bpm-value">---</span>
+            <span style="font-size:0.7rem; color:var(--text-sub);"> BPM</span>
+          </div>
+          <div class="bpm-controls">
+            <button class="btn-sm" id="btn-bpm-minus">-1</button>
+            <button class="btn-sm" id="btn-bpm-plus">+1</button>
+            <button class="btn-sm" id="btn-tap-tempo" style="background:var(--primary)">TAP</button>
+          </div>
+        </div>
+        <div class="beat-bar">
+          <div class="beat-light" id="beat-light"></div>
+        </div>
+      </div>
+
+      <!-- Transport Controls -->
+      <div class="card">
+        <div class="transport-controls">
+          <button class="btn-ctrl" id="btn-countdown">⏱️ 3秒遅延</button>
+          <button class="btn-play" id="btn-play-pause">▶ 再生</button>
+          <button class="btn-ctrl" id="btn-stop">⏹️ 停止</button>
+        </div>
+      </div>
+
+      <!-- Speed Control -->
+      <div class="card">
+        <div class="section-title">
+          <span>再生速度 (遅くする微調整・ピッチ維持)</span>
+          <span id="speed-display" style="font-family:'Orbitron'; color:var(--accent-cyan)">1.00x</span>
+        </div>
+        <div class="speed-presets-slow">
+          <button class="btn-speed" data-speed="0.5">0.50x</button>
+          <button class="btn-speed" data-speed="0.6">0.60x</button>
+          <button class="btn-speed" data-speed="0.7">0.70x</button>
+          <button class="btn-speed" data-speed="0.8">0.80x</button>
+          <button class="btn-speed" data-speed="0.9">0.90x</button>
+          <button class="btn-speed active" data-speed="1.0">1.00x</button>
+        </div>
+        <input type="range" class="seek-bar-full" id="speed-slider" min="0.30" max="1.00" step="0.02" value="1.00" style="height:6px;">
+      </div>
+
+      <!-- A-B Repeat -->
+      <div class="card">
+        <div class="section-title">A-B 区間リピート</div>
+        <div class="ab-grid">
+          <button class="btn-ab" id="btn-set-a">
+            <span>A点</span>
+            <span id="time-a" style="font-size:0.6rem;">--:--.-</span>
+          </button>
+          <button class="btn-ab" id="btn-set-b">
+            <span>B点</span>
+            <span id="time-b" style="font-size:0.6rem;">--:--.-</span>
+          </button>
+          <button class="toggle-btn" id="btn-toggle-ab">リピート OFF</button>
+        </div>
+      </div>
+
+      <!-- Assist Toggles -->
+      <div class="card">
+        <div class="assist-grid">
+          <button class="toggle-btn" id="btn-toggle-metro">🔊 メトロノーム OFF</button>
+          <button class="toggle-btn" id="btn-toggle-section">⏸️ セクション停止 OFF</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Panel: Bookmark Pads -->
+    <div class="right-panel">
+      <div class="bm-header">
+        <div class="bm-header-title">📌 ブックマーク (1〜100)</div>
+        <button class="btn-bm-action" id="btn-add-auto">＋ 現在位置を登録</button>
+      </div>
+
+      <div class="range-tabs-container">
+        <button class="btn-range-tab active" data-page="1">1 - 20</button>
+        <button class="btn-range-tab" data-page="2">21 - 40</button>
+        <button class="btn-range-tab" data-page="3">41 - 60</button>
+        <button class="btn-range-tab" data-page="4">61 - 80</button>
+        <button class="btn-range-tab" data-page="5">81 - 100</button>
+      </div>
+
+      <div class="bookmark-pad-grid" id="bm-pad-grid"></div>
+
+      <div class="bm-edit-bar">
+        <span id="selected-bm-label" style="font-size:0.85rem; font-weight:800; color:var(--accent-cyan)">No. --</span>
+        <input type="text" class="bm-edit-input" id="bm-note-edit" placeholder="メモ編集...">
+        <button class="btn-sm" id="btn-clear-bm" style="background:#ef4444; color:white; padding:6px 12px; font-size:0.8rem;">削除</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Countdown Overlay -->
+  <div class="countdown-overlay" id="countdown-overlay">
+    <div class="countdown-num" id="countdown-num">3</div>
+    <div style="font-size:1.2rem; color:var(--text-sub);">Get Ready!</div>
+  </div>
+
+  <script>
+    // --- State Management ---
+    let audioCtx = null;
+    let audioElement = null;
+    let audioSourceNode = null;
+    let audioBuffer = null;
+
+    let musicGainNode = null;
+    let metroGainNode = null;
+    let micGainNode = null;
+
+    let micStream = null;
+    let micSourceNode = null;
+    let micEnabled = false;
+
+    // Speech Recognition (Voice Command)
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let voiceCmdEnabled = false;
+
+    let currentFile = null;
+    let fileKey = "";
+
+    let isPlaying = false;
+    let bpm = 120;
+
+    let pointA = null;
+    let pointB = null;
+    let abRepeatEnabled = false;
+
+    let metronomeEnabled = false;
+    let sectionPracticeEnabled = false;
+
+    let bookmarkMap = {};
+    let activePadNum = null;
+    let currentBmPage = 1;
+
+    let tapTimes = [];
+    let standaloneMetroLastTick = 0;
+
+    // DOM Elements
+    const dropzone = document.getElementById('dropzone');
+    const leftPanelDropzone = document.getElementById('left-panel-dropzone');
+    const fileInput = document.getElementById('file-input');
+    const trackTitle = document.getElementById('track-title');
+    const bpmValue = document.getElementById('bpm-value');
+    const beatLight = document.getElementById('beat-light');
+
+    const seekBar = document.getElementById('seek-bar');
+    const currentTimeEl = document.getElementById('current-time');
+    const totalTimeEl = document.getElementById('total-time');
+
+    const btnPlayPause = document.getElementById('btn-play-pause');
+    const btnStop = document.getElementById('btn-stop');
+    const btnCountdown = document.getElementById('btn-countdown');
+
+    const speedSlider = document.getElementById('speed-slider');
+    const speedDisplay = document.getElementById('speed-display');
+    const speedBtns = document.querySelectorAll('.btn-speed');
+
+    const musicVolSlider = document.getElementById('music-vol');
+    const metroVolSlider = document.getElementById('metro-vol');
+    const micVolSlider = document.getElementById('mic-vol');
+    const musicVolVal = document.getElementById('music-vol-val');
+    const metroVolVal = document.getElementById('metro-vol-val');
+    const micVolVal = document.getElementById('mic-vol-val');
+    const btnToggleMic = document.getElementById('btn-toggle-mic');
+    const btnToggleVoice = document.getElementById('btn-toggle-voice');
+    const voiceToast = document.getElementById('voice-toast');
+
+    const btnSetA = document.getElementById('btn-set-a');
+    const btnSetB = document.getElementById('btn-set-b');
+    const timeAEl = document.getElementById('time-a');
+    const timeBEl = document.getElementById('time-b');
+    const btnToggleAB = document.getElementById('btn-toggle-ab');
+
+    const btnToggleMetro = document.getElementById('btn-toggle-metro');
+    const btnToggleSection = document.getElementById('btn-toggle-section');
+
+    const btnBpmMinus = document.getElementById('btn-bpm-minus');
+    const btnBpmPlus = document.getElementById('btn-bpm-plus');
+    const btnTapTempo = document.getElementById('btn-tap-tempo');
+
+    const bmPadGrid = document.getElementById('bm-pad-grid');
+    const rangeTabBtns = document.querySelectorAll('.btn-range-tab');
+    const btnAddAuto = document.getElementById('btn-add-auto');
+    const selectedBmLabel = document.getElementById('selected-bm-label');
+    const bmNoteEdit = document.getElementById('bm-note-edit');
+    const btnClearBm = document.getElementById('btn-clear-bm');
+
+    const countdownOverlay = document.getElementById('countdown-overlay');
+    const countdownNum = document.getElementById('countdown-num');
+
+    // --- Init Bookmark Pad Grid ---
+    function renderPads() {
+      bmPadGrid.innerHTML = '';
+      const startNum = (currentBmPage - 1) * 20 + 1;
+      const endNum = startNum + 19;
+
+      for (let i = startNum; i <= endNum; i++) {
+        const btn = document.createElement('div');
+        btn.className = 'bm-pad-btn';
+        btn.dataset.num = i;
+
+        const data = bookmarkMap[i];
+        if (data) {
+          btn.classList.add('has-data');
+        }
+
+        btn.innerHTML = `
+          <div class="bm-pad-num">${i}</div>
+          <div class="bm-pad-time" style="display:${data ? 'block' : 'none'}">${data ? formatTimeShort(data.time) : '--:--'}</div>
+          <div class="bm-pad-note" style="display:${data ? 'block' : 'none'}">${data ? (data.note || '') : ''}</div>
+        `;
+
+        btn.addEventListener('click', () => onPadClick(i));
+        bmPadGrid.appendChild(btn);
+      }
+    }
+
+    rangeTabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        rangeTabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentBmPage = parseInt(btn.dataset.page);
+        renderPads();
+      });
+    });
+
+    renderPads();
+
+    // --- Audio Engine Initialization ---
+    function initAudioEngine() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      if (!musicGainNode) {
+        musicGainNode = audioCtx.createGain();
+        musicGainNode.gain.value = parseFloat(musicVolSlider.value);
+        musicGainNode.connect(audioCtx.destination);
+      }
+      if (!metroGainNode) {
+        metroGainNode = audioCtx.createGain();
+        metroGainNode.gain.value = parseFloat(metroVolSlider.value);
+        metroGainNode.connect(audioCtx.destination);
+      }
+      if (!micGainNode) {
+        micGainNode = audioCtx.createGain();
+        micGainNode.gain.value = parseFloat(micVolSlider.value);
+        micGainNode.connect(audioCtx.destination);
+      }
+
+      if (!audioElement) {
+        audioElement = new Audio();
+        audioElement.preservesPitch = true;
+        audioElement.mozPreservesPitch = true;
+        audioElement.webkitPreservesPitch = true;
+
+        audioSourceNode = audioCtx.createMediaElementSource(audioElement);
+        audioSourceNode.connect(musicGainNode);
+
+        audioElement.addEventListener('timeupdate', onTimeUpdate);
+        audioElement.addEventListener('ended', () => {
+          pauseAudio();
+          audioElement.currentTime = 0;
+        });
+      }
+    }
+
+    // --- Voice Command Recognition (Web Speech API) ---
+    btnToggleVoice.addEventListener('click', toggleVoiceControl);
+
+    function toggleVoiceControl() {
+      if (!SpeechRecognition) {
+        alert('お使いのブラウザは音声コマンド認識に対応していません。(Google Chrome推奨)');
+        return;
+      }
+
+      if (!voiceCmdEnabled) {
+        voiceCmdEnabled = true;
+        btnToggleVoice.classList.add('active');
+        btnToggleVoice.textContent = '🗣️ 声操作 ON';
+        startVoiceRecognition();
+        showVoiceToast('🗣️ 音声コマンド認識スタート！');
+      } else {
+        voiceCmdEnabled = false;
+        btnToggleVoice.classList.remove('active');
+        btnToggleVoice.textContent = '🗣️ 声操作 OFF';
+        if (recognition) {
+          try { recognition.stop(); } catch(e){}
+        }
+        showVoiceToast('🗣️ 声操作をOFFにしました');
+      }
+    }
+
+    function startVoiceRecognition() {
+      if (!recognition && SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ja-JP';
+        recognition.continuous = true;
+        recognition.interimResults = false;
+
+        recognition.onresult = (event) => {
+          const lastIdx = event.results.length - 1;
+          const text = event.results[lastIdx][0].transcript.trim().toLowerCase();
+          console.log('Voice Command Received:', text);
+          showVoiceToast(`🗣️ 認識: 「${text}」`);
+          processVoiceCommand(text);
+        };
+
+        recognition.onerror = (event) => {
+          console.warn('Speech recognition error:', event.error);
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            showVoiceToast('⚠️ マイク許可が拒否されました（GAS埋め込み制限の可能性あり）');
+            voiceCmdEnabled = false;
+            btnToggleVoice.classList.remove('active');
+            btnToggleVoice.textContent = '🗣️ 声操作 OFF';
+          } else if (event.error === 'network') {
+            showVoiceToast('⚠️ ネットワークエラー（音声認識にネット接続が必要です）');
+          } else if (event.error !== 'no-speech') {
+            showVoiceToast(`⚠️ 音声認識エラー: ${event.error}`);
+          }
+        };
+
+        recognition.onend = () => {
+          if (voiceCmdEnabled) {
+            setTimeout(() => {
+              if (voiceCmdEnabled) {
+                try { recognition.start(); } catch(e){}
+              }
+            }, 300);
+          }
+        };
+      }
+
+      try {
+        recognition.start();
+      } catch(e) {
+        console.warn("Speech recognition start failed:", e);
+        showVoiceToast('⚠️ 音声認識の起動に失敗しました（埋め込み制限）');
+      }
+    }
+
+    // --- Process Voice Commands (Includes Voice-Activated OFF Command & Safety Filters) ---
+    function processVoiceCommand(cmd) {
+      // 0. 声による「声操作OFF」コマンド
+      if (cmd.includes('声操作オフ') || cmd.includes('声操作off') || cmd.includes('マイクオフ') || cmd.includes('音声オフ') || cmd.includes('音声off') || cmd.includes('ストップリスニング')) {
+        voiceCmdEnabled = false;
+        btnToggleVoice.classList.remove('active');
+        btnToggleVoice.textContent = '🗣️ 声操作 OFF';
+        if (recognition) {
+          try { recognition.stop(); } catch(e){}
+        }
+        showVoiceToast('🗣️ 声操作をOFFにしました');
+        return;
+      }
+
+      let normalized = cmd
+        .replace(/一番|１番/g, '1番').replace(/二番|２番/g, '2番').replace(/三番|３番/g, '3番')
+        .replace(/四番|４番/g, '4番').replace(/五番|５番/g, '5番').replace(/六番|６番/g, '6番')
+        .replace(/七番|７番/g, '7番').replace(/八番|８番/g, '8番').replace(/九番|９番/g, '9番')
+        .replace(/十番|１０番/g, '10番');
+
+      // 【誤作動防止フィルター】カウント声は無視し、キーワード付きの場合のみ認識
+      const hasBookmarkKeyword = cmd.includes('ブックマーク') || cmd.includes('キュー') || cmd.includes('ジャンプ');
+
+      if (hasBookmarkKeyword) {
+        const padMatch = normalized.match(/(?:ブックマーク|キュー|ジャンプ)?(?:の)?(\d+)/);
+        if (padMatch) {
+          const num = parseInt(padMatch[1]);
+          if (num > 0 && num <= 100) {
+            currentBmPage = Math.ceil(num / 20);
+            rangeTabBtns.forEach(b => {
+              if (parseInt(b.dataset.page) === currentBmPage) b.classList.add('active');
+              else b.classList.remove('active');
+            });
+            renderPads();
+            onPadClick(num);
+            showVoiceToast(`📌 ブックマーク No.${num} へジャンプ`);
+            return;
+          }
+        }
+      }
+
+      // もう一回 / リピート / 頭出し
+      if (cmd.includes('もう一回') || cmd.includes('もうかい') || cmd.includes('リピート') || cmd.includes('頭出し') || cmd.includes('あたま') || cmd.includes('ワンモア') || cmd.includes('ループ')) {
+        if (audioElement) {
+          const curTime = audioElement.currentTime;
+
+          if (abRepeatEnabled && pointA !== null) {
+            audioElement.currentTime = pointA;
+            showVoiceToast('🔁 A点へリピート');
+          } else {
+            const pastBookmarks = Object.values(bookmarkMap)
+              .filter(b => b.time <= curTime - 0.5)
+              .sort((a, b) => b.time - a.time);
+
+            if (pastBookmarks.length > 0) {
+              audioElement.currentTime = pastBookmarks[0].time;
+              showVoiceToast(`📌 ブックマーク頭出し (${formatTimeShort(pastBookmarks[0].time)})`);
+            } else {
+              audioElement.currentTime = Math.max(0, curTime - 5);
+              showVoiceToast('⏪ 5秒巻き戻しリピート');
+            }
+          }
+          if (!isPlaying) playAudio();
+        }
+      }
+      // 巻き戻し
+      else if (cmd.includes('巻き戻し') || cmd.includes('まきもどし') || cmd.includes('戻') || cmd.includes('バック') || cmd.includes('リワインド')) {
+        if (audioElement) {
+          audioElement.currentTime = Math.max(0, audioElement.currentTime - 5);
+          showVoiceToast('⏪ 5秒巻き戻し');
+        }
+      }
+      // 再生 / スタート
+      else if (cmd.includes('再生') || cmd.includes('スタート') || cmd.includes('プレイ') || cmd.includes('かけ')) {
+        playAudio();
+        showVoiceToast('▶ 再生スタート');
+      }
+      // 停止 / 一時停止 / ストップ
+      else if (cmd.includes('停止') || cmd.includes('ストップ') || cmd.includes('一時停止') || cmd.includes('止め') || cmd.includes('ポーズ')) {
+        pauseAudio();
+        showVoiceToast('⏸ 一時停止');
+      }
+    }
+
+    function showVoiceToast(msg) {
+      voiceToast.textContent = msg;
+      voiceToast.classList.add('show');
+      setTimeout(() => voiceToast.classList.remove('show'), 1800);
+    }
+
+    // --- Volume & Mixer ---
+    musicVolSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      musicVolVal.textContent = Math.round(val * 100) + '%';
+      if (musicGainNode) musicGainNode.gain.value = val;
+    });
+
+    metroVolSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      metroVolVal.textContent = Math.round(val * 100) + '%';
+      if (metroGainNode) metroGainNode.gain.value = val;
+    });
+
+    micVolSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      micVolVal.textContent = Math.round(val * 100) + '%';
+      if (micGainNode) micGainNode.gain.value = val;
+    });
+
+    // --- Bluetooth Microphone Switch ---
+    btnToggleMic.addEventListener('click', toggleMicrophone);
+
+    async function toggleMicrophone() {
+      initAudioEngine();
+      if (!micEnabled) {
+        try {
+          try {
+            micStream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+            });
+          } catch (firstErr) {
+            console.warn("初回のマイク取得に失敗したため標準設定で再試行します:", firstErr);
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          }
+          micSourceNode = audioCtx.createMediaStreamSource(micStream);
+          micSourceNode.connect(micGainNode);
+          micEnabled = true;
+          btnToggleMic.classList.add('active');
+          btnToggleMic.textContent = '🎤 マイク ON';
+        } catch (err) {
+          console.error("Mic access error:", err);
+          let message = 'マイクのアクセスに失敗しました。';
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            message += '\n\n【対処法】ブラウザのアドレスバー左側の「鍵マーク」または設定から、このサイトへの「マイク許可」を「オン」にしてください。また、Windows設定の「プライバシーとセキュリティ > マイク」もご確認ください。';
+          } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+            message += '\n\n【対処法】マイクまたはBluetoothマイクが正しくパソコンに接続・認識されているか確認してください。';
+          } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+            message += '\n\n【対処法】マイクが他のアプリ（Zoom、Teams、Discordなど）で独占使用されている可能性があります。他のアプリを終了して再試行してください。';
+          } else {
+            message += `\n\n(エラー詳細: ${err.name} - ${err.message})`;
+          }
+          alert(message);
+        }
+      } else {
+        if (micStream) micStream.getTracks().forEach(t => t.stop());
+        if (micSourceNode) micSourceNode.disconnect();
+        micEnabled = false;
+        btnToggleMic.classList.remove('active');
+        btnToggleMic.textContent = '🎤 マイク OFF';
+      }
+    }
+
+    // --- File Drag & Drop ---
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    [dropzone, leftPanelDropzone].forEach(target => {
+      target.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+      target.addEventListener('dragleave', (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); });
+      target.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files[0]);
+      });
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) handleFileSelect(e.target.files[0]);
+    });
+
+    async function handleFileSelect(file) {
+      if (!file.type.startsWith('audio/')) {
+        alert('音声ファイルを選択してください。');
+        return;
+      }
+
+      initAudioEngine();
+      currentFile = file;
+      fileKey = `dance_pad_${file.name}_${file.size}`;
+      trackTitle.textContent = file.name;
+
+      const fileUrl = URL.createObjectURL(file);
+      audioElement.src = fileUrl;
+      audioElement.playbackRate = parseFloat(speedSlider.value);
+
+      pointA = null; pointB = null;
+      updateABUI();
+      loadBookmarks();
+
+      bpmValue.textContent = '...';
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        totalTimeEl.textContent = formatTime(audioBuffer.duration);
+
+        const detectedBpm = analyzeBPM(audioBuffer);
+        bpm = Math.round(detectedBpm);
+        bpmValue.textContent = bpm;
+      } catch (err) {
+        console.error('BPM decode error:', err);
+        bpm = 120;
+        bpmValue.textContent = bpm;
+      }
+    }
+
+    // --- Playback Functions ---
+    function playAudio() {
+      initAudioEngine();
+      if (!audioElement || !audioElement.src) return;
+
+      audioElement.play().then(() => {
+        isPlaying = true;
+        btnPlayPause.textContent = '⏸ 一時停止';
+        btnPlayPause.style.background = 'linear-gradient(135deg, var(--accent-pink), var(--primary))';
+      }).catch(err => console.error("Play error:", err));
+    }
+
+    function pauseAudio() {
+      if (audioElement) audioElement.pause();
+      isPlaying = false;
+      btnPlayPause.textContent = '▶ 再生';
+      btnPlayPause.style.background = 'linear-gradient(135deg, var(--accent-cyan), var(--primary))';
+    }
+
+    btnPlayPause.addEventListener('click', () => {
+      if (isPlaying) pauseAudio();
+      else playAudio();
+    });
+
+    btnStop.addEventListener('click', () => {
+      pauseAudio();
+      if (audioElement) audioElement.currentTime = 0;
+      updateTimeDisplay(0);
+    });
+
+    seekBar.addEventListener('input', () => {
+      if (!audioElement || !audioElement.duration) return;
+      const target = (seekBar.value / 100) * audioElement.duration;
+      audioElement.currentTime = target;
+      updateTimeDisplay(target);
+    });
+
+    // 3s Countdown
+    btnCountdown.addEventListener('click', () => {
+      if (!audioElement || !audioElement.src) {
+        alert('音楽ファイルを読み込んでください。');
+        return;
+      }
+      if (isPlaying) pauseAudio();
+
+      let count = 3;
+      countdownNum.textContent = count;
+      countdownOverlay.classList.add('show');
+      playBeep(880, 0.1);
+
+      const interval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownNum.textContent = count;
+          playBeep(880, 0.1);
+        } else {
+          clearInterval(interval);
+          countdownOverlay.classList.remove('show');
+          playBeep(880, 0.15);
+          playAudio();
+        }
+      }, 1000);
+    });
+
+    // Uniform Metronome Click
+    function playBeep(freq = 880, duration = 0.05) {
+      initAudioEngine();
+      if (!audioCtx || !metroGainNode) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(metroGainNode);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    // --- Main Loop ---
+    let lastTime = 0;
+
+    function renderLoop() {
+      const now = performance.now();
+
+      if (metronomeEnabled && bpm > 0) {
+        const currentRate = (audioElement && isPlaying) ? (audioElement.playbackRate || 1.0) : 1.0;
+        const secondsPerBeat = (60 / bpm) / currentRate;
+        const intervalMs = secondsPerBeat * 1000;
+
+        if (now - standaloneMetroLastTick >= intervalMs) {
+          standaloneMetroLastTick = now;
+          playBeep(880, 0.05);
+
+          beatLight.classList.add('active');
+          setTimeout(() => beatLight.classList.remove('active'), 120);
+        }
+      }
+
+      if (isPlaying && audioElement) {
+        const curTime = audioElement.currentTime;
+        updateTimeDisplay(curTime);
+      }
+
+      requestAnimationFrame(renderLoop);
+    }
+    requestAnimationFrame(renderLoop);
+
+    function onTimeUpdate() {
+      if (!audioElement || !audioElement.duration) return;
+      const cur = audioElement.currentTime;
+      seekBar.value = (cur / audioElement.duration) * 100;
+      updateTimeDisplay(cur);
+
+      if (sectionPracticeEnabled && isPlaying && lastTime < cur) {
+        const sortedTimes = Object.values(bookmarkMap).map(b => b.time).sort((a, b) => a - b);
+        for (const t of sortedTimes) {
+          if (lastTime < t && cur >= t) {
+            audioElement.currentTime = t;
+            pauseAudio();
+            break;
+          }
+        }
+      }
+
+      if (abRepeatEnabled && pointA !== null && pointB !== null && pointB > pointA) {
+        if (cur >= pointB) {
+          audioElement.currentTime = pointA;
+        }
+      }
+
+      lastTime = cur;
+    }
+
+    function updateTimeDisplay(timeSec) {
+      currentTimeEl.textContent = formatTime(timeSec);
+      if (audioElement && audioElement.duration) {
+        totalTimeEl.textContent = formatTime(audioElement.duration);
+      }
+    }
+
+    function formatTime(seconds) {
+      if (isNaN(seconds) || seconds === null) return "00:00.0";
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      const ms = Math.floor((seconds % 1) * 10);
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${ms}`;
+    }
+
+    // --- Fine Slow Speed Control ---
+    function setSpeed(speed) {
+      const spd = parseFloat(speed);
+      speedSlider.value = spd;
+      speedDisplay.textContent = spd.toFixed(2) + 'x';
+      if (audioElement) audioElement.playbackRate = spd;
+      speedBtns.forEach(btn => {
+        if (Math.abs(parseFloat(btn.dataset.speed) - spd) < 0.01) btn.classList.add('active');
+        else btn.classList.remove('active');
+      });
+    }
+
+    speedSlider.addEventListener('input', (e) => setSpeed(e.target.value));
+    speedBtns.forEach(btn => btn.addEventListener('click', () => setSpeed(btn.dataset.speed)));
+
+    // --- AB Repeat ---
+    btnSetA.addEventListener('click', () => {
+      if (!audioElement) return;
+      pointA = audioElement.currentTime;
+      timeAEl.textContent = formatTime(pointA);
+      btnSetA.classList.add('set');
+    });
+
+    btnSetB.addEventListener('click', () => {
+      if (!audioElement || pointA === null) return;
+      if (audioElement.currentTime <= pointA) return;
+      pointB = audioElement.currentTime;
+      timeBEl.textContent = formatTime(pointB);
+      btnSetB.classList.add('set');
+      abRepeatEnabled = true;
+      updateABUI();
+    });
+
+    btnToggleAB.addEventListener('click', () => {
+      if (pointA === null || pointB === null) return;
+      abRepeatEnabled = !abRepeatEnabled;
+      updateABUI();
+    });
+
+    function updateABUI() {
+      if (abRepeatEnabled) {
+        btnToggleAB.textContent = 'リピート ON';
+        btnToggleAB.classList.add('active');
+      } else {
+        btnToggleAB.textContent = 'リピート OFF';
+        btnToggleAB.classList.remove('active');
+      }
+    }
+
+    // --- BPM Controls ---
+    btnBpmMinus.addEventListener('click', () => { bpm = Math.max(30, bpm - 1); bpmValue.textContent = bpm; });
+    btnBpmPlus.addEventListener('click', () => { bpm = Math.min(300, bpm + 1); bpmValue.textContent = bpm; });
+    btnTapTempo.addEventListener('click', () => {
+      const now = performance.now();
+      tapTimes.push(now);
+      if (tapTimes.length > 5) tapTimes.shift();
+      if (tapTimes.length >= 2) {
+        let intervals = [];
+        for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i - 1]);
+        const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+        bpm = Math.round(60000 / avg);
+        bpmValue.textContent = bpm;
+      }
+    });
+
+    // --- Toggles ---
+    btnToggleMetro.addEventListener('click', () => {
+      initAudioEngine();
+      metronomeEnabled = !metronomeEnabled;
+      standaloneMetroLastTick = performance.now();
+      btnToggleMetro.classList.toggle('active', metronomeEnabled);
+      btnToggleMetro.textContent = metronomeEnabled ? '🔊 メトロノーム ON' : '🔊 メトロノーム OFF';
+    });
+
+    btnToggleSection.addEventListener('click', () => {
+      sectionPracticeEnabled = !sectionPracticeEnabled;
+      btnToggleSection.classList.toggle('active', sectionPracticeEnabled);
+      btnToggleSection.textContent = sectionPracticeEnabled ? '⏸️ セクション停止 ON' : '⏸️ セクション停止 OFF';
+    });
+
+    // --- Bookmark Pad Logic ---
+    function onPadClick(num) {
+      activePadNum = num;
+      selectedBmLabel.textContent = `No. ${num}`;
+
+      if (bookmarkMap[num]) {
+        const targetTime = bookmarkMap[num].time;
+        if (audioElement) {
+          audioElement.currentTime = targetTime;
+          updateTimeDisplay(targetTime);
+          if (!isPlaying) playAudio();
+        }
+        bmNoteEdit.value = bookmarkMap[num].note || "";
+      } else {
+        if (audioElement && audioElement.src) {
+          bookmarkMap[num] = {
+            time: audioElement.currentTime,
+            note: `Cue ${num}`
+          };
+          saveBookmarks();
+          renderPads();
+          bmNoteEdit.value = bookmarkMap[num].note;
+        } else {
+          alert('音楽ファイルを読み込んでください。');
+        }
+      }
+    }
+
+    btnAddAuto.addEventListener('click', () => {
+      if (!audioElement || !audioElement.src) {
+        alert('音楽ファイルを読み込んでください。');
+        return;
+      }
+      let targetNum = 1;
+      while (bookmarkMap[targetNum] && targetNum <= 100) targetNum++;
+      bookmarkMap[targetNum] = {
+        time: audioElement.currentTime,
+        note: `Cue ${targetNum}`
+      };
+      currentBmPage = Math.ceil(targetNum / 20);
+      rangeTabBtns.forEach(b => {
+        if (parseInt(b.dataset.page) === currentBmPage) b.classList.add('active');
+        else b.classList.remove('active');
+      });
+      saveBookmarks();
+      renderPads();
+      onPadClick(targetNum);
+    });
+
+    bmNoteEdit.addEventListener('input', (e) => {
+      if (activePadNum && bookmarkMap[activePadNum]) {
+        bookmarkMap[activePadNum].note = e.target.value;
+        saveBookmarks();
+        renderPads();
+      }
+    });
+
+    btnClearBm.addEventListener('click', () => {
+      if (activePadNum && bookmarkMap[activePadNum]) {
+        delete bookmarkMap[activePadNum];
+        saveBookmarks();
+        renderPads();
+        bmNoteEdit.value = "";
+        selectedBmLabel.textContent = "No. --";
+        activePadNum = null;
+      }
+    });
+
+    function formatTimeShort(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    // --- Save/Load with LocalStorage + GAS Cloud Sync ---
+    function saveBookmarks() {
+      if (!fileKey) return;
+      const dataStr = JSON.stringify(bookmarkMap);
+      localStorage.setItem(fileKey, dataStr);
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run.saveBookmarkGAS(fileKey, dataStr);
+      }
+    }
+
+    function loadBookmarks() {
+      if (!fileKey) return;
+
+      const saved = localStorage.getItem(fileKey);
+      if (saved) {
+        try { bookmarkMap = JSON.parse(saved); } catch (e) { bookmarkMap = {}; }
+      } else {
+        bookmarkMap = {};
+      }
+      renderPads();
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run.withSuccessHandler((cloudData) => {
+          if (cloudData) {
+            try {
+              bookmarkMap = JSON.parse(cloudData);
+              localStorage.setItem(fileKey, cloudData);
+              renderPads();
+            } catch(e) {}
+          }
+        }).loadBookmarkGAS(fileKey);
+      }
+    }
+
+    // --- Autocorrelation BPM Analysis ---
+    function analyzeBPM(buffer) {
+      const pcmData = buffer.getChannelData(0);
+      const samplerate = buffer.sampleRate;
+      const step = Math.floor(samplerate / 4000);
+      const sampledLength = Math.floor(pcmData.length / step);
+      const sampled = new Float32Array(sampledLength);
+      
+      for (let i = 0; i < sampledLength; i++) {
+        sampled[i] = Math.abs(pcmData[i * step]);
+      }
+
+      const envLen = sampledLength;
+      const energyEnv = new Float32Array(envLen);
+      let winSize = 100;
+      let sum = 0;
+
+      for (let i = 0; i < winSize && i < envLen; i++) sum += sampled[i];
+      for (let i = 0; i < envLen; i++) {
+        energyEnv[i] = sum / winSize;
+        sum += (sampled[i + winSize] || 0) - sampled[i];
+      }
+
+      const minBpm = 60, maxBpm = 200, effSampleRate = 4000;
+      const minLag = Math.floor((60 / maxBpm) * effSampleRate);
+      const maxLag = Math.floor((60 / minBpm) * effSampleRate);
+
+      let maxCorr = -1, bestLag = minLag;
+      const maxSamples = Math.min(effSampleRate * 30, envLen - maxLag);
+
+      for (let lag = minLag; lag <= maxLag; lag++) {
+        let corr = 0;
+        for (let i = 0; i < maxSamples; i += 2) {
+          corr += energyEnv[i] * energyEnv[i + lag];
+        }
+        if (corr > maxCorr) {
+          maxCorr = corr;
+          bestLag = lag;
+        }
+      }
+
+      const calculatedBpm = (60 * effSampleRate) / bestLag;
+      let finalBpm = calculatedBpm;
+      while (finalBpm < 70) finalBpm *= 2;
+      while (finalBpm > 170) finalBpm /= 2;
+
+      return finalBpm;
+    }
+  </script>
+</body>
+</html>
