@@ -950,15 +950,19 @@
 
     async function startMicMeter() {
       try {
+        initAudioEngine();
+        if (audioCtx && audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
         if (!micMeterStream) {
           micMeterStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         }
-        initAudioEngine();
         const source = audioCtx.createMediaStreamSource(micMeterStream);
         micMeterAnalyser = audioCtx.createAnalyser();
         micMeterAnalyser.fftSize = 256;
         source.connect(micMeterAnalyser);
 
+        let lastSpikeTime = 0;
         const dataArray = new Uint8Array(micMeterAnalyser.frequencyBinCount);
         const updateMeter = () => {
           if (!voiceCmdEnabled && !micEnabled) {
@@ -974,6 +978,20 @@
 
           if (micLevelBar) micLevelBar.style.width = percent + '%';
           if (micLevelVal) micLevelVal.textContent = percent + '%';
+
+          // ★マイクレベルによる掛け声・手拍子トリガー（40%以上で一瞬大きな声を出すと作動）
+          const now = Date.now();
+          if (voiceCmdEnabled && percent >= 40 && (now - lastSpikeTime > 1800)) {
+            lastSpikeTime = now;
+            console.log("Mic volume action triggered! Level:", percent);
+            if (isPlaying) {
+              pauseAudio();
+              showVoiceToast('🔊 掛け声/手拍子を検知 ➔ ⏸ 一時停止');
+            } else {
+              playAudio();
+              showVoiceToast('🔊 掛け声/手拍子を検知 ➔ ▶ 再生スタート');
+            }
+          }
 
           micMeterAnimId = requestAnimationFrame(updateMeter);
         };
