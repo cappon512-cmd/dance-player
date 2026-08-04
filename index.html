@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/annyang/2.6.1/annyang.min.js"></script>
   <style>
     :root {
       --bg-dark: #0c0e17;
@@ -635,13 +636,13 @@
           <button class="btn-mic-toggle" id="btn-toggle-mic">🎤 マイク OFF</button>
           <button class="btn-voice-cmd" id="btn-toggle-voice">🗣️ 声操作 OFF</button>
         </div>
-        <!-- ★マイク音量ビジュアルメーター -->
-        <div id="mic-meter-container" style="margin-top:8px; background:rgba(0,0,0,0.3); border-radius:6px; padding:6px 10px; display:flex; align-items:center; gap:8px;">
-          <span style="font-size:0.75rem; color:#aaa; min-width:85px;">🎤 マイク入力:</span>
-          <div style="flex:1; background:#222; height:10px; border-radius:5px; overflow:hidden; position:relative;">
-            <div id="mic-level-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #4caf50, #ffeb3b, #f44336); transition:width 0.05s ease;"></div>
+        <!-- ★マイク音量ビジュアルメーター（常時枠表示） -->
+        <div id="mic-meter-container" style="margin-top:8px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px;">
+          <span style="font-size:0.8rem; font-weight:bold; color:#4caf50; min-width:90px;">🎤 マイクレベル:</span>
+          <div style="flex:1; background:#111; border:1px solid #444; height:14px; border-radius:7px; overflow:hidden; position:relative;">
+            <div id="mic-level-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #4caf50 0%, #8bc34a 60%, #ffeb3b 85%, #f44336 100%); transition:width 0.05s ease; box-shadow:0 0 8px rgba(76,175,80,0.8);"></div>
           </div>
-          <span id="mic-level-val" style="font-size:0.75rem; color:#4caf50; min-width:35px; text-align:right;">0%</span>
+          <span id="mic-level-val" style="font-size:0.85rem; font-weight:bold; color:#4caf50; min-width:40px; text-align:right;">0%</span>
         </div>
         <div class="mixer-grid" style="margin-top:4px;">
           <div class="vol-row">
@@ -993,11 +994,6 @@
     }
 
     function toggleVoiceControl() {
-      if (!SpeechRecognition) {
-        alert('お使いのブラウザは音声コマンド認識に対応していません。(Google Chrome推奨)');
-        return;
-      }
-
       if (!voiceCmdEnabled) {
         voiceCmdEnabled = true;
         btnToggleVoice.classList.add('active');
@@ -1010,7 +1006,9 @@
         btnToggleVoice.classList.remove('active');
         btnToggleVoice.textContent = '🗣️ 声操作 OFF';
         stopMicMeter();
-        if (recognition) {
+        if (typeof annyang !== 'undefined' && annyang) {
+          try { annyang.abort(); } catch(e){}
+        } else if (recognition) {
           try { recognition.stop(); } catch(e){}
         }
         showVoiceToast('🗣️ 声操作をOFFにしました');
@@ -1018,55 +1016,50 @@
     }
 
     function startVoiceRecognition() {
+      // 1. annyangライブラリが利用可能な場合（Windows/Chrome/Edgeで超高感度・安定動作）
+      if (typeof annyang !== 'undefined' && annyang) {
+        console.log("Starting annyang voice recognition...");
+        annyang.setLanguage('ja-JP');
+        annyang.removeCommands();
+
+        const commands = {
+          '*phrase': function(phrase) {
+            console.log('Annyang phrase captured:', phrase);
+            showVoiceToast(`🗣️ 認識: 「${phrase}」`);
+            processVoiceCommand(phrase.toLowerCase());
+          }
+        };
+
+        annyang.addCommands(commands);
+        try {
+          annyang.start({ autoRestart: true, continuous: true });
+        } catch(e) {
+          console.warn("annyang start error:", e);
+        }
+        return;
+      }
+
+      // 2. annyangが使えない場合のWeb Speech APIフォールバック
       if (!recognition && SpeechRecognition) {
         recognition = new SpeechRecognition();
         recognition.lang = 'ja-JP';
-        recognition.continuous = false; // ★Chromebook/Chrome互換性のためにワンショット連続方式に変更
-        recognition.interimResults = true; // ★途中経過リアルタイム表示
-
-        recognition.onstart = () => {
-          console.log('Speech recognition started');
-        };
-
-        recognition.onsoundstart = () => {
-          console.log('Sound detected');
-          showVoiceToast('🔊 音を検知中...');
-        };
-
-        recognition.onspeechstart = () => {
-          console.log('Speech started');
-          showVoiceToast('🗣️ 声を検知中...');
-        };
+        recognition.continuous = false;
+        recognition.interimResults = true;
 
         recognition.onresult = (event) => {
           for (let i = event.resultIndex; i < event.results.length; i++) {
             const result = event.results[i];
             const text = result[0].transcript.trim().toLowerCase();
-            
-            if (!result.isFinal) {
-              showVoiceToast(`🗣️ 聞き取り中: 「${text}」`);
-            } else {
-              console.log('Voice Command Received:', text);
+            if (result.isFinal) {
               showVoiceToast(`🗣️ 認識: 「${text}」`);
               processVoiceCommand(text);
+            } else {
+              showVoiceToast(`🗣️ 聞き取り中: 「${text}」`);
             }
           }
         };
 
-        recognition.onerror = (event) => {
-          console.warn('Speech recognition error:', event.error);
-          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            showVoiceToast('⚠️ マイクアクセスが許可されていません。アドレスバーの鍵マークをご確認ください。');
-            voiceCmdEnabled = false;
-            btnToggleVoice.classList.remove('active');
-            btnToggleVoice.textContent = '🗣️ 声操作 OFF';
-          } else if (event.error === 'network') {
-            showVoiceToast('⚠️ ネットワークエラー（インターネット接続が必要です）');
-          }
-        };
-
         recognition.onend = () => {
-          // ワンショット終了後、ユーザーがOFFにしていない限り直ちに再起動して連続認識を維持
           if (voiceCmdEnabled) {
             setTimeout(() => {
               if (voiceCmdEnabled) {
@@ -1079,9 +1072,7 @@
 
       try {
         recognition.start();
-      } catch(e) {
-        console.warn("Speech recognition start failed:", e);
-      }
+      } catch(e){}
     }
 
     // --- Process Voice Commands (Includes Voice-Activated OFF Command & Safety Filters) ---
