@@ -635,6 +635,14 @@
           <button class="btn-mic-toggle" id="btn-toggle-mic">🎤 マイク OFF</button>
           <button class="btn-voice-cmd" id="btn-toggle-voice">🗣️ 声操作 OFF</button>
         </div>
+        <!-- ★マイク音量ビジュアルメーター -->
+        <div id="mic-meter-container" style="margin-top:8px; background:rgba(0,0,0,0.3); border-radius:6px; padding:6px 10px; display:flex; align-items:center; gap:8px;">
+          <span style="font-size:0.75rem; color:#aaa; min-width:85px;">🎤 マイク入力:</span>
+          <div style="flex:1; background:#222; height:10px; border-radius:5px; overflow:hidden; position:relative;">
+            <div id="mic-level-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #4caf50, #ffeb3b, #f44336); transition:width 0.05s ease;"></div>
+          </div>
+          <span id="mic-level-val" style="font-size:0.75rem; color:#4caf50; min-width:35px; text-align:right;">0%</span>
+        </div>
         <div class="mixer-grid" style="margin-top:4px;">
           <div class="vol-row">
             <span>🎵 音楽音量</span>
@@ -930,8 +938,59 @@
       }
     }
 
-    // --- Voice Command Recognition (Web Speech API) ---
+    // --- Voice Command Recognition (Web Speech API) & Mic Level Meter ---
+    const micLevelBar = document.getElementById('mic-level-bar');
+    const micLevelVal = document.getElementById('mic-level-val');
+    let micMeterStream = null;
+    let micMeterAnalyser = null;
+    let micMeterAnimId = null;
+
     btnToggleVoice.addEventListener('click', toggleVoiceControl);
+
+    async function startMicMeter() {
+      try {
+        if (!micMeterStream) {
+          micMeterStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+        initAudioEngine();
+        const source = audioCtx.createMediaStreamSource(micMeterStream);
+        micMeterAnalyser = audioCtx.createAnalyser();
+        micMeterAnalyser.fftSize = 256;
+        source.connect(micMeterAnalyser);
+
+        const dataArray = new Uint8Array(micMeterAnalyser.frequencyBinCount);
+        const updateMeter = () => {
+          if (!voiceCmdEnabled && !micEnabled) {
+            if (micLevelBar) micLevelBar.style.width = '0%';
+            if (micLevelVal) micLevelVal.textContent = '0%';
+            return;
+          }
+          micMeterAnalyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+          const avg = sum / dataArray.length;
+          const percent = Math.min(100, Math.round((avg / 128) * 100));
+
+          if (micLevelBar) micLevelBar.style.width = percent + '%';
+          if (micLevelVal) micLevelVal.textContent = percent + '%';
+
+          micMeterAnimId = requestAnimationFrame(updateMeter);
+        };
+        updateMeter();
+      } catch (err) {
+        console.warn("Mic meter init error:", err);
+      }
+    }
+
+    function stopMicMeter() {
+      if (micMeterAnimId) cancelAnimationFrame(micMeterAnimId);
+      if (micLevelBar) micLevelBar.style.width = '0%';
+      if (micLevelVal) micLevelVal.textContent = '0%';
+      if (micMeterStream && !micEnabled) {
+        micMeterStream.getTracks().forEach(t => t.stop());
+        micMeterStream = null;
+      }
+    }
 
     function toggleVoiceControl() {
       if (!SpeechRecognition) {
@@ -944,11 +1003,13 @@
         btnToggleVoice.classList.add('active');
         btnToggleVoice.textContent = '🗣️ 声操作 ON';
         startVoiceRecognition();
+        startMicMeter();
         showVoiceToast('🗣️ 音声コマンド認識スタート！');
       } else {
         voiceCmdEnabled = false;
         btnToggleVoice.classList.remove('active');
         btnToggleVoice.textContent = '🗣️ 声操作 OFF';
+        stopMicMeter();
         if (recognition) {
           try { recognition.stop(); } catch(e){}
         }
