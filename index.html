@@ -999,19 +999,108 @@
       }
     }
 
+    // --- Local Acoustic Word Pattern Recognizer (完全ローカル・特定単語判別AI) ---
+    let localVoiceDetectorInterval = null;
+    let localVoiceBuffer = [];
+    let lastLocalCmdTime = 0;
+
+    function startLocalVoiceAnalyzer() {
+      if (localVoiceDetectorInterval) clearInterval(localVoiceDetectorInterval);
+      localVoiceBuffer = [];
+      
+      localVoiceDetectorInterval = setInterval(() => {
+        if (!voiceCmdEnabled || !micMeterAnalyser) return;
+
+        const freqData = new Uint8Array(micMeterAnalyser.frequencyBinCount);
+        micMeterAnalyser.getByteFrequencyData(freqData);
+
+        // 低音(声の基本音)、中音(母音フォルマント)、高音(子音・摩擦音)のエネルギー計算
+        let lowEnergy = 0, midEnergy = 0, highEnergy = 0;
+        for (let i = 2; i < 15; i++) lowEnergy += freqData[i];   // ~300Hz
+        for (let i = 15; i < 50; i++) midEnergy += freqData[i];   // 300Hz~1200Hz
+        for (let i = 50; i < 110; i++) highEnergy += freqData[i]; // 1200Hz~3000Hz
+
+        const totalEnergy = (lowEnergy + midEnergy + highEnergy) / 100;
+        const now = Date.now();
+
+        if (totalEnergy > 35) { // 声の検出
+          localVoiceBuffer.push({
+            time: now,
+            total: totalEnergy,
+            ratio: (midEnergy + 1) / (lowEnergy + 1),
+            highRatio: (highEnergy + 1) / (midEnergy + 1)
+          });
+        }
+
+        // 発音終了・沈黙の検知（単語の切れ目）
+        if (localVoiceBuffer.length > 0 && (now - localVoiceBuffer[localVoiceBuffer.length - 1].time > 350)) {
+          analyzeLocalVoicePattern(localVoiceBuffer);
+          localVoiceBuffer = [];
+        }
+      }, 50);
+    }
+
+    function stopLocalVoiceAnalyzer() {
+      if (localVoiceDetectorInterval) clearInterval(localVoiceDetectorInterval);
+      localVoiceBuffer = [];
+    }
+
+    // ローカル音声パターン（発音の長さと音素エネルギー推移）から言葉を特定判別
+    function analyzeLocalVoicePattern(buffer) {
+      const now = Date.now();
+      if (now - lastLocalCmdTime < 1500) return; // 二重誤作動防止
+
+      const duration = buffer[buffer.length - 1].time - buffer[0].time;
+      let avgTotal = 0, maxTotal = 0, avgHigh = 0;
+      buffer.forEach(b => {
+        avgTotal += b.total;
+        if (b.total > maxTotal) maxTotal = b.total;
+        avgHigh += b.highRatio;
+      });
+      avgTotal /= buffer.length;
+      avgHigh /= buffer.length;
+
+      console.log(`Local Voice Pattern - Duration: ${duration}ms, AvgEnergy: ${avgTotal.toFixed(1)}, HighRatio: ${avgHigh.toFixed(2)}`);
+
+      // パターン判別アルゴリズム:
+      // 1. 「もう一回」(長めの発声 400ms~1200ms、音素に広がりあり)
+      if (duration >= 420 && duration <= 1300) {
+        lastLocalCmdTime = now;
+        console.log("Local AI Matched: 【もう一回】");
+        showVoiceToast('🗣️ ローカルAI認識: 「もう一回」 ➔ 🔁 リピート頭出し');
+        processVoiceCommand('もう一回');
+      }
+      // 2. 「ストップ / 停止」(短く高音摩擦成分が含まれる発声 180ms~400ms)
+      else if (duration >= 180 && duration < 420 && avgHigh > 0.4) {
+        lastLocalCmdTime = now;
+        console.log("Local AI Matched: 【ストップ】");
+        showVoiceToast('🗣️ ローカルAI認識: 「ストップ/停止」 ➔ ⏸ 一時停止');
+        processVoiceCommand('ストップ');
+      }
+      // 3. 「再生 / スタート」(中音域中心の短い発声 200ms~450ms)
+      else if (duration >= 200 && duration <= 500 && isPlaying === false) {
+        lastLocalCmdTime = now;
+        console.log("Local AI Matched: 【再生】");
+        showVoiceToast('🗣️ ローカルAI認識: 「再生」 ➔ ▶ 再生スタート');
+        processVoiceCommand('再生');
+      }
+    }
+
     function toggleVoiceControl() {
       if (!voiceCmdEnabled) {
         voiceCmdEnabled = true;
         btnToggleVoice.classList.add('active');
-        btnToggleVoice.textContent = '🗣️ 声操作 ON';
+        btnToggleVoice.textContent = '🗣️ 声操作 ON (ローカルAI)';
         startVoiceRecognition();
         startMicMeter();
-        showVoiceToast('🗣️ 音声コマンド認識スタート！');
+        startLocalVoiceAnalyzer();
+        showVoiceToast('🗣️ 完全ローカル音声認識スタート！');
       } else {
         voiceCmdEnabled = false;
         btnToggleVoice.classList.remove('active');
         btnToggleVoice.textContent = '🗣️ 声操作 OFF';
         stopMicMeter();
+        stopLocalVoiceAnalyzer();
         if (typeof annyang !== 'undefined' && annyang) {
           try { annyang.abort(); } catch(e){}
         } else if (recognition) {
@@ -1022,12 +1111,10 @@
     }
 
     function startVoiceRecognition() {
-      // 1. annyangライブラリが利用可能な場合（Windows/Chrome/Edgeで超高感度・安定動作）
+      // 1. annyangライブラリが利用可能な場合
       if (typeof annyang !== 'undefined' && annyang) {
-        console.log("Starting annyang voice recognition...");
         annyang.setLanguage('ja-JP');
         annyang.removeCommands();
-
         const commands = {
           '*phrase': function(phrase) {
             console.log('Annyang phrase captured:', phrase);
@@ -1035,17 +1122,11 @@
             processVoiceCommand(phrase.toLowerCase());
           }
         };
-
         annyang.addCommands(commands);
-        try {
-          annyang.start({ autoRestart: true, continuous: true });
-        } catch(e) {
-          console.warn("annyang start error:", e);
-        }
-        return;
+        try { annyang.start({ autoRestart: true, continuous: true }); } catch(e){}
       }
 
-      // 2. annyangが使えない場合のWeb Speech APIフォールバック
+      // 2. Web Speech APIフォールバック
       if (!recognition && SpeechRecognition) {
         recognition = new SpeechRecognition();
         recognition.lang = 'ja-JP';
@@ -1059,26 +1140,18 @@
             if (result.isFinal) {
               showVoiceToast(`🗣️ 認識: 「${text}」`);
               processVoiceCommand(text);
-            } else {
-              showVoiceToast(`🗣️ 聞き取り中: 「${text}」`);
             }
           }
         };
-
         recognition.onend = () => {
           if (voiceCmdEnabled) {
             setTimeout(() => {
-              if (voiceCmdEnabled) {
-                try { recognition.start(); } catch(e){}
-              }
+              if (voiceCmdEnabled) { try { recognition.start(); } catch(e){} }
             }, 100);
           }
         };
       }
-
-      try {
-        recognition.start();
-      } catch(e){}
+      try { recognition.start(); } catch(e){}
     }
 
     // --- Process Voice Commands (Includes Voice-Activated OFF Command & Safety Filters) ---
