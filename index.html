@@ -974,6 +974,16 @@
 
         recognition.onsoundstart = () => {
           console.log('Sound detected');
+          showVoiceToast('🔊 音を検知しました...');
+        };
+
+        recognition.onspeechstart = () => {
+          console.log('Speech started');
+          showVoiceToast('🗣️ 話し声を検知しました...');
+        };
+
+        recognition.onspeechend = () => {
+          console.log('Speech ended');
         };
 
         recognition.onresult = (event) => {
