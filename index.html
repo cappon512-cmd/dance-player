@@ -632,9 +632,12 @@
         <div class="section-title">
           <span>オーディオ & 声の操作</span>
         </div>
-        <div class="mic-button-group">
+        <div class="mic-button-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
           <button class="btn-mic-toggle" id="btn-toggle-mic">🎤 マイク OFF</button>
           <button class="btn-voice-cmd" id="btn-toggle-voice">🗣️ 声操作 OFF</button>
+        </div>
+        <div style="margin-top:6px;">
+          <button id="btn-train-voice" style="width:100%; padding:8px; background:linear-gradient(135deg, #06b6d4, #3b82f6); color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.85rem; cursor:pointer;">🎙️ 自分の声をアプリに覚えさせる（学習録音）</button>
         </div>
         <!-- ★マイク音量ビジュアルメーター（常時枠表示） -->
         <div id="mic-meter-container" style="margin-top:8px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px;">
@@ -1004,6 +1007,161 @@
     let localVoiceBuffer = [];
     let lastLocalCmdTime = 0;
 
+    // マイボイス学習データ
+    let trainedProfiles = {};
+    try {
+      trainedProfiles = JSON.parse(localStorage.getItem('dance_player_voice_profiles') || '{}');
+    } catch(e){}
+
+    const btnTrainVoice = document.getElementById('btn-train-voice');
+    const voiceTrainModal = document.getElementById('voice-train-modal');
+    const btnCloseTrainModal = document.getElementById('btn-close-train-modal');
+    const trainStatusMsg = document.getElementById('train-status-msg');
+
+    document.querySelectorAll('.btn-rec-action').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const cmd = e.target.dataset.cmd;
+        recordVoiceProfile(cmd, e.target);
+      });
+    });
+
+    if (btnTrainVoice) {
+      btnTrainVoice.addEventListener('click', async () => {
+        try {
+          if (!micMeterStream) {
+            micMeterStream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+            });
+          }
+          startMicMeter();
+          voiceTrainModal.style.display = 'flex';
+          trainStatusMsg.textContent = '登録したい項目のボタンを押し、ハッキリ発声してください';
+        } catch(err) {
+          alert('マイクが使用できませんでした');
+        }
+      });
+    }
+
+    if (btnCloseTrainModal) {
+      btnCloseTrainModal.addEventListener('click', () => {
+        voiceTrainModal.style.display = 'none';
+      });
+    }
+
+    let isRecordingTarget = null;
+    function recordVoiceProfile(targetCmd, btnElement) {
+      isRecordingTarget = targetCmd;
+      trainStatusMsg.textContent = `🎙️ 1.5秒以内にマイクに向かって「${targetCmd}」とお話しください...`;
+      btnElement.style.background = '#eab308';
+      btnElement.style.color = '#111';
+      btnElement.textContent = '録音待機中...';
+
+      let recBuffer = [];
+      let recStartTime = Date.now();
+
+      const recCheckInterval = setInterval(() => {
+        if (!micMeterAnalyser) return;
+        const freqData = new Uint8Array(micMeterAnalyser.frequencyBinCount);
+        micMeterAnalyser.getByteFrequencyData(freqData);
+
+        let lowEnergy = 0, midEnergy = 0, highEnergy = 0;
+        for (let i = 2; i < 15; i++) lowEnergy += freqData[i];
+        for (let i = 15; i < 50; i++) midEnergy += freqData[i];
+        for (let i = 50; i < 110; i++) highEnergy += freqData[i];
+        const total = (lowEnergy + midEnergy + highEnergy) / 100;
+
+        if (total > 35) {
+          recBuffer.push({ time: Date.now(), total: total, highRatio: (highEnergy + 1) / (midEnergy + 1) });
+        }
+
+        const now = Date.now();
+        if (now - recStartTime > 2200 || (recBuffer.length > 0 && now - recBuffer[recBuffer.length - 1].time > 400)) {
+          clearInterval(recCheckInterval);
+          btnElement.style.background = '';
+          btnElement.style.color = '';
+          btnElement.textContent = `🎤 再登録`;
+
+          if (recBuffer.length < 3) {
+            trainStatusMsg.textContent = '⚠️ 声が届きませんでした。もう一度大きめの声でお試しください。';
+            isRecordingTarget = null;
+            return;
+          }
+
+          const duration = recBuffer[recBuffer.length - 1].time - recBuffer[0].time;
+          let avgHigh = 0;
+          recBuffer.forEach(b => avgHigh += b.highRatio);
+          avgHigh /= recBuffer.length;
+
+          trainedProfiles[targetCmd] = { duration: duration, highRatio: avgHigh };
+          localStorage.setItem('dance_player_voice_profiles', JSON.stringify(trainedProfiles));
+
+          trainStatusMsg.textContent = `✅ 「${targetCmd}」のあなたの声を登録しました！`;
+          isRecordingTarget = null;
+        }
+      }, 50);
+    }
+
+    // ★登録されたアクションの実行
+    function executeMyVoiceCommand(cmd) {
+      console.log("Executing MyVoice Command:", cmd);
+
+      // 特定番号のブックマーク（「1番」「2番」〜「5番」など）へのジャンプ再生
+      const numMatch = cmd.match(/(\d+)番/);
+      if (numMatch) {
+        const num = parseInt(numMatch[1]);
+        if (num > 0 && num <= 100) {
+          currentBmPage = Math.ceil(num / 20);
+          rangeTabBtns.forEach(b => {
+            if (parseInt(b.dataset.page) === currentBmPage) b.classList.add('active');
+            else b.classList.remove('active');
+          });
+          renderPads();
+          onPadClick(num);
+          showVoiceToast(`📌 ブックマーク No.${num} へジャンプ再生`);
+          return;
+        }
+      }
+
+      if (cmd === '再生') {
+        playAudio();
+      } else if (cmd === 'ストップ') {
+        pauseAudio();
+      } else if (cmd === 'もう一回') {
+        processVoiceCommand('もう一回');
+      } else if (cmd === 'ブックマーク追加') {
+        if (!audioElement) return;
+        for (let i = 1; i <= 100; i++) {
+          if (!bookmarkMap[i]) {
+            bookmarkMap[i] = { time: audioElement.currentTime, note: "" };
+            saveBookmarks();
+            renderPads();
+            showVoiceToast(`📌 ブックマーク No.${i} を追加登録しました`);
+            break;
+          }
+        }
+      } else if (cmd === 'はやく') {
+        if (!audioElement) return;
+        const newRate = Math.min(2.0, parseFloat((audioElement.playbackRate + 0.1).toFixed(2)));
+        audioElement.playbackRate = newRate;
+        speedSlider.value = newRate;
+        speedVal.textContent = newRate.toFixed(2) + 'x';
+        showVoiceToast(`⚡ 再生スピード: ${newRate.toFixed(2)}x`);
+      } else if (cmd === 'ゆっくり') {
+        if (!audioElement) return;
+        const newRate = Math.max(0.5, parseFloat((audioElement.playbackRate - 0.1).toFixed(2)));
+        audioElement.playbackRate = newRate;
+        speedSlider.value = newRate;
+        speedVal.textContent = newRate.toFixed(2) + 'x';
+        showVoiceToast(`🐢 再生スピード: ${newRate.toFixed(2)}x`);
+      } else if (cmd === '標準スピード') {
+        if (!audioElement) return;
+        audioElement.playbackRate = 1.0;
+        speedSlider.value = 1.0;
+        speedVal.textContent = '1.00x';
+        showVoiceToast(`🎵 標準スピード: 1.00x`);
+      }
+    }
+
     function startLocalVoiceAnalyzer() {
       if (localVoiceDetectorInterval) clearInterval(localVoiceDetectorInterval);
       localVoiceBuffer = [];
@@ -1014,7 +1172,6 @@
         const freqData = new Uint8Array(micMeterAnalyser.frequencyBinCount);
         micMeterAnalyser.getByteFrequencyData(freqData);
 
-        // 低音(声の基本音)、中音(母音フォルマント)、高音(子音・摩擦音)のエネルギー計算
         let lowEnergy = 0, midEnergy = 0, highEnergy = 0;
         for (let i = 2; i < 15; i++) lowEnergy += freqData[i];   // ~300Hz
         for (let i = 15; i < 50; i++) midEnergy += freqData[i];   // 300Hz~1200Hz
@@ -1032,7 +1189,6 @@
           });
         }
 
-        // 発音終了・沈黙の検知（単語の切れ目）
         if (localVoiceBuffer.length > 0 && (now - localVoiceBuffer[localVoiceBuffer.length - 1].time > 350)) {
           analyzeLocalVoicePattern(localVoiceBuffer);
           localVoiceBuffer = [];
@@ -1045,7 +1201,7 @@
       localVoiceBuffer = [];
     }
 
-    // ローカル音声パターン（発音の長さと音素エネルギー推移）から言葉を特定判別
+    // ローカル音声パターン（学習データマイボイスとの照合）
     function analyzeLocalVoicePattern(buffer) {
       const now = Date.now();
       if (now - lastLocalCmdTime < 1400) return; // 二重誤作動防止
@@ -1060,43 +1216,52 @@
       avgTotal /= buffer.length;
       avgHigh /= buffer.length;
 
-      console.log(`Local Voice Pattern - Duration: ${duration}ms, AvgEnergy: ${avgTotal.toFixed(1)}, HighRatio: ${avgHigh.toFixed(2)}`);
+      console.log(`Local Voice Input - Duration: ${duration}ms, HighRatio: ${avgHigh.toFixed(2)}`);
 
-      // 1. 【ストップ / 停止 / 止め】(短い発声 120ms~380ms ＋ 擦過音/高音成分) ➔ 最優先で一時停止
-      if (isPlaying && duration >= 120 && duration <= 380 && avgHigh > 0.35) {
+      // ★学習データ(マイボイス)が存在する場合、登録された個人の声と最小距離照合
+      if (trainedProfiles && Object.keys(trainedProfiles).length > 0) {
+        let bestMatch = null;
+        let minDiff = 99999;
+
+        for (const [cmd, prof] of Object.entries(trainedProfiles)) {
+          const durDiff = Math.abs(duration - prof.duration);
+          const ratioDiff = Math.abs(avgHigh - prof.highRatio) * 400;
+          const totalDiff = durDiff + ratioDiff;
+
+          if (totalDiff < minDiff && durDiff < 500) {
+            minDiff = totalDiff;
+            bestMatch = cmd;
+          }
+        }
+
+        if (bestMatch && minDiff < 450) {
+          lastLocalCmdTime = now;
+          console.log(`MyVoice AI Matched: 【${bestMatch}】 (Diff: ${minDiff.toFixed(0)})`);
+          showVoiceToast(`🗣️ マイボイス学習AI: 「${bestMatch}」を認識！`);
+          executeMyVoiceCommand(bestMatch);
+          return;
+        }
+      }
+
+      // 標準デフォルトパターンの場合のフォールバック
+      if (isPlaying && duration >= 100 && duration <= 350 && avgHigh > 0.35) {
         lastLocalCmdTime = now;
-        console.log("Local AI Matched: 【ストップ】");
         showVoiceToast('🗣️ ローカルAI: 「ストップ」 ➔ ⏸ 一時停止');
         pauseAudio();
         return;
       }
 
-      // 2. 【もう一回 / リピート】(しっかりした長さの発声 420ms~1300ms)
-      if (duration >= 420 && duration <= 1300) {
+      if (duration >= 450 && duration <= 1300) {
         lastLocalCmdTime = now;
-        console.log("Local AI Matched: 【もう一回】");
         showVoiceToast('🗣️ ローカルAI: 「もう一回」 ➔ 🔁 リピート頭出し');
         processVoiceCommand('もう一回');
         return;
       }
 
-      // 3. 【再生 / スタート】(停止中の発声 200ms~500ms)
-      if (!isPlaying && duration >= 180 && duration <= 500) {
+      if (!isPlaying && duration >= 180 && duration <= 450) {
         lastLocalCmdTime = now;
-        console.log("Local AI Matched: 【再生】");
         showVoiceToast('🗣️ ローカルAI: 「再生」 ➔ ▶ 再生スタート');
         playAudio();
-        return;
-      }
-
-      // 4. 【巻き戻し】(短い発声 150ms~350ms)
-      if (isPlaying && duration >= 150 && duration <= 400) {
-        lastLocalCmdTime = now;
-        console.log("Local AI Matched: 【巻き戻し】");
-        if (audioElement) {
-          audioElement.currentTime = Math.max(0, audioElement.currentTime - 5);
-          showVoiceToast('🗣️ ローカルAI: 「巻き戻し」 ➔ ⏪ 5秒戻る');
-        }
         return;
       }
     }
@@ -1282,42 +1447,39 @@
     btnToggleMic.addEventListener('click', toggleMicrophone);
 
     async function toggleMicrophone() {
-      initAudioEngine();
-      if (!micEnabled) {
-        try {
+      try {
+        initAudioEngine();
+        if (audioCtx && audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
+        if (!micEnabled) {
           try {
             micStream = await navigator.mediaDevices.getUserMedia({
-              audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
             });
           } catch (firstErr) {
-            console.warn("初回のマイク取得に失敗したため標準設定で再試行します:", firstErr);
             micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
           }
-          micSourceNode = audioCtx.createMediaStreamSource(micStream);
-          micSourceNode.connect(micGainNode);
+          if (micGainNode) {
+            micSourceNode = audioCtx.createMediaStreamSource(micStream);
+            micSourceNode.connect(micGainNode);
+          }
           micEnabled = true;
           btnToggleMic.classList.add('active');
           btnToggleMic.textContent = '🎤 マイク ON';
-        } catch (err) {
-          console.error("Mic access error:", err);
-          let message = 'マイクのアクセスに失敗しました。';
-          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-            message += '\n\n【対処法】ブラウザのアドレスバー左側の「鍵マーク」または設定から、このサイトへの「マイク許可」を「オン」にしてください。また、Windows設定の「プライバシーとセキュリティ > マイク」もご確認ください。';
-          } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-            message += '\n\n【対処法】マイクまたはBluetoothマイクが正しくパソコンに接続・認識されているか確認してください。';
-          } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-            message += '\n\n【対処法】マイクが他のアプリ（Zoom、Teams、Discordなど）で独占使用されている可能性があります。他のアプリを終了して再試行してください。';
-          } else {
-            message += `\n\n(エラー詳細: ${err.name} - ${err.message})`;
-          }
-          alert(message);
+          startMicMeter();
+        } else {
+          if (micStream) micStream.getTracks().forEach(t => t.stop());
+          if (micSourceNode) try{ micSourceNode.disconnect(); }catch(e){}
+          micStream = null;
+          micEnabled = false;
+          btnToggleMic.classList.remove('active');
+          btnToggleMic.textContent = '🎤 マイク OFF';
+          stopMicMeter();
         }
-      } else {
-        if (micStream) micStream.getTracks().forEach(t => t.stop());
-        if (micSourceNode) micSourceNode.disconnect();
-        micEnabled = false;
-        btnToggleMic.classList.remove('active');
-        btnToggleMic.textContent = '🎤 マイク OFF';
+      } catch (err) {
+        console.error("Mic access error:", err);
+        alert('マイクの起動に失敗しました。ブラウザのマイク許可をご確認ください。');
       }
     }
 
@@ -1761,6 +1923,75 @@
 
       return finalBpm;
     }
-  </script>
+  <!-- ★自分の声登録（学習）ダイアログ -->
+  <div id="voice-train-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#1e2238; border:1px solid #3b82f6; border-radius:12px; padding:20px; width:95%; max-width:480px; max-height:90vh; overflow-y:auto; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.8);">
+      <h3 style="margin-top:0; color:#06b6d4;">🎙️ 自分の声を覚える（学習）</h3>
+      <p style="font-size:0.8rem; color:#ccc; margin-bottom:15px;">登録したい項目のボタンを押し、マイクに向かって1回発声してください。</p>
+
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:15px; text-align:left;">
+        <!-- 基本操作 -->
+        <div style="font-size:0.75rem; color:#a78bfa; font-weight:bold; margin-top:4px;">【基本プレイヤー操作】</div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#4caf50; font-size:0.85rem;">1. 「再生」</span>
+          <button class="btn-rec-action" data-cmd="再生" style="padding:5px 12px; background:#4caf50; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「再生」を声で登録</button>
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#f44336; font-size:0.85rem;">2. 「ストップ」</span>
+          <button class="btn-rec-action" data-cmd="ストップ" style="padding:5px 12px; background:#f44336; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「ストップ」を声で登録</button>
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#ffeb3b; font-size:0.85rem;">3. 「もう一回」</span>
+          <button class="btn-rec-action" data-cmd="もう一回" style="padding:5px 12px; background:#eab308; color:#111; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「もう一回」を声で登録</button>
+        </div>
+
+        <!-- ブックマーク操作 -->
+        <div style="font-size:0.75rem; color:#a78bfa; font-weight:bold; margin-top:8px;">【ブックマーク操作】</div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#ec4899; font-size:0.85rem;">4. 「新規ブックマーク追加」</span>
+          <button class="btn-rec-action" data-cmd="ブックマーク追加" style="padding:5px 12px; background:#ec4899; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「追加」を声で登録</button>
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#a78bfa; font-size:0.85rem;">5. 「1番へジャンプ」</span>
+          <button class="btn-rec-action" data-cmd="1番" style="padding:5px 12px; background:#7c3aed; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「1番」を声で登録</button>
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#a78bfa; font-size:0.85rem;">6. 「2番へジャンプ」</span>
+          <button class="btn-rec-action" data-cmd="2番" style="padding:5px 12px; background:#7c3aed; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「2番」を声で登録</button>
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#a78bfa; font-size:0.85rem;">7. 「3番へジャンプ」</span>
+          <button class="btn-rec-action" data-cmd="3番" style="padding:5px 12px; background:#7c3aed; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「3番」を声で登録</button>
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#a78bfa; font-size:0.85rem;">8. 「4番へジャンプ」</span>
+          <button class="btn-rec-action" data-cmd="4番" style="padding:5px 12px; background:#7c3aed; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「4番」を声で登録</button>
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#a78bfa; font-size:0.85rem;">9. 「5番へジャンプ」</span>
+          <button class="btn-rec-action" data-cmd="5番" style="padding:5px 12px; background:#7c3aed; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「5番」を声で登録</button>
+        </div>
+
+        <!-- 再生速度操作 -->
+        <div style="font-size:0.75rem; color:#a78bfa; font-weight:bold; margin-top:8px;">【再生スピード操作】</div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#06b6d4; font-size:0.85rem;">5. 「はやく」 (+0.1)</span>
+          <button class="btn-rec-action" data-cmd="はやく" style="padding:5px 12px; background:#06b6d4; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「はやく」を声で登録</button>
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#3b82f6; font-size:0.85rem;">6. 「ゆっくり」 (-0.1)</span>
+          <button class="btn-rec-action" data-cmd="ゆっくり" style="padding:5px 12px; background:#3b82f6; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「ゆっくり」を声で登録</button>
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:6px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-weight:bold; color:#10b981; font-size:0.85rem;">7. 「標準スピード」 (1.0x)</span>
+          <button class="btn-rec-action" data-cmd="標準スピード" style="padding:5px 12px; background:#10b981; color:white; border:none; border-radius:6px; font-weight:bold; font-size:0.8rem; cursor:pointer;">🎤 「標準速度」を声で登録</button>
+        </div>
+      </div>
+
+      <div id="train-status-msg" style="font-size:0.85rem; color:#a78bfa; min-height:24px; margin-bottom:15px;">準備完了</div>
+      
+      <button id="btn-close-train-modal" style="width:100%; padding:10px; background:#374151; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">閉じる</button>
+    </div>
+  </div>
 </body>
 </html>
