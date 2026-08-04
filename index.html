@@ -965,7 +965,6 @@
 
         recognition.onstart = () => {
           console.log('Speech recognition started');
-          showVoiceToast('🎤 声の聞き取り準備完了！話しかけてください');
         };
 
         recognition.onaudiostart = () => {
@@ -979,7 +978,7 @@
 
         recognition.onspeechstart = () => {
           console.log('Speech started');
-          showVoiceToast('🗣️ 話し声を検知しました...');
+          showVoiceToast('🗣️ 話し声を検知中...');
         };
 
         recognition.onspeechend = () => {
