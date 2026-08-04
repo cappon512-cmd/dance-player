@@ -1048,7 +1048,7 @@
     // ローカル音声パターン（発音の長さと音素エネルギー推移）から言葉を特定判別
     function analyzeLocalVoicePattern(buffer) {
       const now = Date.now();
-      if (now - lastLocalCmdTime < 1500) return; // 二重誤作動防止
+      if (now - lastLocalCmdTime < 1400) return; // 二重誤作動防止
 
       const duration = buffer[buffer.length - 1].time - buffer[0].time;
       let avgTotal = 0, maxTotal = 0, avgHigh = 0;
@@ -1062,27 +1062,42 @@
 
       console.log(`Local Voice Pattern - Duration: ${duration}ms, AvgEnergy: ${avgTotal.toFixed(1)}, HighRatio: ${avgHigh.toFixed(2)}`);
 
-      // パターン判別アルゴリズム:
-      // 1. 「もう一回」(長めの発声 400ms~1200ms、音素に広がりあり)
+      // 1. 【ストップ / 停止 / 止め】(短い発声 120ms~380ms ＋ 擦過音/高音成分) ➔ 最優先で一時停止
+      if (isPlaying && duration >= 120 && duration <= 380 && avgHigh > 0.35) {
+        lastLocalCmdTime = now;
+        console.log("Local AI Matched: 【ストップ】");
+        showVoiceToast('🗣️ ローカルAI: 「ストップ」 ➔ ⏸ 一時停止');
+        pauseAudio();
+        return;
+      }
+
+      // 2. 【もう一回 / リピート】(しっかりした長さの発声 420ms~1300ms)
       if (duration >= 420 && duration <= 1300) {
         lastLocalCmdTime = now;
         console.log("Local AI Matched: 【もう一回】");
-        showVoiceToast('🗣️ ローカルAI認識: 「もう一回」 ➔ 🔁 リピート頭出し');
+        showVoiceToast('🗣️ ローカルAI: 「もう一回」 ➔ 🔁 リピート頭出し');
         processVoiceCommand('もう一回');
+        return;
       }
-      // 2. 「ストップ / 停止」(短く高音摩擦成分が含まれる発声 180ms~400ms)
-      else if (duration >= 180 && duration < 420 && avgHigh > 0.4) {
-        lastLocalCmdTime = now;
-        console.log("Local AI Matched: 【ストップ】");
-        showVoiceToast('🗣️ ローカルAI認識: 「ストップ/停止」 ➔ ⏸ 一時停止');
-        processVoiceCommand('ストップ');
-      }
-      // 3. 「再生 / スタート」(中音域中心の短い発声 200ms~450ms)
-      else if (duration >= 200 && duration <= 500 && isPlaying === false) {
+
+      // 3. 【再生 / スタート】(停止中の発声 200ms~500ms)
+      if (!isPlaying && duration >= 180 && duration <= 500) {
         lastLocalCmdTime = now;
         console.log("Local AI Matched: 【再生】");
-        showVoiceToast('🗣️ ローカルAI認識: 「再生」 ➔ ▶ 再生スタート');
-        processVoiceCommand('再生');
+        showVoiceToast('🗣️ ローカルAI: 「再生」 ➔ ▶ 再生スタート');
+        playAudio();
+        return;
+      }
+
+      // 4. 【巻き戻し】(短い発声 150ms~350ms)
+      if (isPlaying && duration >= 150 && duration <= 400) {
+        lastLocalCmdTime = now;
+        console.log("Local AI Matched: 【巻き戻し】");
+        if (audioElement) {
+          audioElement.currentTime = Math.max(0, audioElement.currentTime - 5);
+          showVoiceToast('🗣️ ローカルAI: 「巻き戻し」 ➔ ⏪ 5秒戻る');
+        }
+        return;
       }
     }
 
@@ -1212,8 +1227,8 @@
               audioElement.currentTime = pastBookmarks[0].time;
               showVoiceToast(`📌 ブックマーク頭出し (${formatTimeShort(pastBookmarks[0].time)})`);
             } else {
-              audioElement.currentTime = Math.max(0, curTime - 5);
-              showVoiceToast('⏪ 5秒巻き戻しリピート');
+              audioElement.currentTime = 0;
+              showVoiceToast('⏪ 曲の最初から頭出しリピート');
             }
           }
           if (!isPlaying) playAudio();
